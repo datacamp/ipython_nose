@@ -46,46 +46,37 @@ class DummyUnittestStream:
 class NotebookLiveOutput(object):
     def __init__(self):
         self.output_id = 'ipython_nose_%s' % uuid.uuid4().hex
-        display({'text/html': ('<div id="{self.output_id}"></div>'
-                               .format(self=self))},
-                raw=True)
-        display({'application/javascript': ('document.{self.output_id} = '
-                                            '$("#{self.output_id}");'
-                                            .format(self=self))},
-                raw=True)
+        #display({'text/html': ('<div id="{self.output_id}"></div>'
+        #                       .format(self=self))},
+        #        raw=True)
+        #display({'application/javascript': ('document.{self.output_id} = '
+        #                                    '$("#{self.output_id}");'
+        #                                    .format(self=self))},
+        #        raw=True)
 
-    def finalize(self):
-        display({'application/javascript': ('delete document.{self.output_id};'
-                                            .format(self=self))},
-                raw=True)
-
-    def write_chars(self, chars):
-        display({'application/javascript': ('document.{self.output_id}.append('
-                                            '$("<span>{chars}</span>"));'
-                                            .format(self=self,
-                                                    chars=cgi.escape(chars)))},
-                raw=True)
-
-    def write_line(self, line):
-        display({'application/javascript': ('document.{self.output_id}.append('
-                                            '$("<div>{line}</div>"));')
-                                            .format(self=self,
-                                                    line=cgi.escape(line))},
-                raw=True)
-
-
-class ConsoleLiveOutput(object):
-    def __init__(self, stream_obj):
-        self.stream_obj = stream_obj
-
-    def finalize(self):
-        self.stream_obj.stream.write('\n')
+    def finalize(self, header, tracebacks):
+        display({'text/task-output': '<pre>%s</pre>'%header}, raw = True)
+        display({'text/task-output': '<pre>%s</pre>'%tracebacks}, raw = True)
+        pass
+        #display({'application/javascript': ('delete document.{self.output_id};'
+        #                                    .format(self=self))},
+        #        raw=True)
 
     def write_chars(self, chars):
-        self.stream_obj.stream.write(chars)
+        pass
+        #display({'application/javascript': ('document.{self.output_id}.append('
+        #                                    '$("<span>{chars}</span>"));'
+        #                                    .format(self=self,
+        #                                            chars=cgi.escape(chars)))},
+        #        raw=True)
 
     def write_line(self, line):
-        self.stream_obj.stream.write(line + '\n')
+        pass
+        #display({'application/javascript': ('document.{self.output_id}.append('
+        #                                    '$("<div>{line}</div>"));')
+        #                                    .format(self=self,
+        #                                            line=cgi.escape(line))},
+        #        raw=True)
 
 
 def html_escape(s):
@@ -107,119 +98,6 @@ class IPythonDisplay(Plugin):
         self.num_tests = 0
         self.failures = []
         self.skipped = 0
-
-    _nose_css = '''\
-    <style type="text/css">
-        span.nosefailedfunc {
-            font-family: monospace;
-            font-weight: bold;
-        }
-        div.noseresults {
-            width: 100%;
-        }
-        div.nosebar {
-            float: left;
-            padding: 1ex 0px 1ex 0px;
-        }
-        div.nosebar.fail {
-            background: #ff3019; /* Old browsers */
-            /* FF3.6+ */
-            background: -moz-linear-gradient(top, #ff3019 0%, #cf0404 100%);
-            /* Chrome,Safari4+ */
-            background: -webkit-gradient(linear, left top, left bottom,
-                                         color-stop(0%,#ff3019),
-                                         color-stop(100%,#cf0404));
-            /* Chrome10+,Safari5.1+ */
-            background: -webkit-linear-gradient(top, #ff3019 0%,#cf0404 100%);
-            /* Opera 11.10+ */
-            background: -o-linear-gradient(top, #ff3019 0%,#cf0404 100%);
-            /* IE10+ */
-            background: -ms-linear-gradient(top, #ff3019 0%,#cf0404 100%);
-            /* W3C */
-            background: linear-gradient(to bottom, #ff3019 0%,#cf0404 100%);
-        }
-        div.nosebar.pass {
-            background: #52b152;
-            background: -moz-linear-gradient(top, #52b152 1%, #008a00 100%);
-            background: -webkit-gradient(linear, left top, left bottom,
-                                         color-stop(1%,#52b152),
-                                         color-stop(100%,#008a00));
-            background: -webkit-linear-gradient(top, #52b152 1%,#008a00 100%);
-            background: -o-linear-gradient(top, #52b152 1%,#008a00 100%);
-            background: -ms-linear-gradient(top, #52b152 1%,#008a00 100%);
-            background: linear-gradient(to bottom, #52b152 1%,#008a00 100%);
-        }
-        div.nosebar.skip {
-            background: #f1e767;
-            background: -moz-linear-gradient(top, #f1e767 0%, #feb645 100%);
-            background: -webkit-gradient(linear, left top, left bottom,
-                                         color-stop(0%,#f1e767),
-                                         color-stop(100%,#feb645));
-            background: -webkit-linear-gradient(top, #f1e767 0%,#feb645 100%);
-            background: -o-linear-gradient(top, #f1e767 0%,#feb645 100%);
-            background: -ms-linear-gradient(top, #f1e767 0%,#feb645 100%);
-            background: linear-gradient(to bottom, #f1e767 0%,#feb645 100%);
-        }
-        div.nosebar.leftmost {
-            border-radius: 4px 0 0 4px;
-        }
-        div.nosebar.rightmost {
-            border-radius: 0 4px 4px 0;
-        }
-        div.nosefailbanner {
-            border-radius: 4px 0 0 4px;
-            border-left: 10px solid #cf0404;
-            padding: 0.5ex 0em 0.5ex 1em;
-            margin-top: 1ex;
-            margin-bottom: 0px;
-        }
-        div.nosefailbanner.expanded {
-            border-radius: 4px 4px 0 0;
-            border-top: 10px solid #cf0404;
-        }
-        pre.nosetraceback {
-            border-radius: 0 4px 4px 4px;
-            border-left: 10px solid #cf0404;
-            padding: 1em;
-            margin-left: 0px;
-            margin-top: 0px;
-        }
-    </style>
-    '''
-
-    _show_hide_js = '''
-    <script>
-        setTimeout(function () {
-            $('.nosefailtoggle').bind(
-                'click',
-                function () {
-                    $(
-                        $(this)
-                            .parent().toggleClass('expanded')
-                            .parent()
-                            .children()
-                            .filter('.nosetraceback')
-                    ).toggle();
-                }
-            );},
-            0);
-    </script>
-    '''
-
-    _summary_template_html = Template('''
-    <div class="noseresults">
-      <div class="nosebar fail leftmost" style="width: {failpercent:d}%">
-          &nbsp;
-      </div>
-      <div class="nosebar skip" style="width: {skippercent:d}%">
-          &nbsp;
-      </div>
-      <div class="nosebar pass rightmost" style="width: {passpercent:d}%">
-          &nbsp;
-      </div>
-      {text!e}
-    </div>
-    ''')
 
     _summary_template_text = Template('''{text}\n''')
 
@@ -245,16 +123,6 @@ class IPythonDisplay(Plugin):
         return template.format(
             text=text, failpercent=failpercent, skippercent=skippercent,
             passpercent=passpercent)
-
-    _tracebacks_template_html = Template('''
-    <div class="nosefailure">
-        <div class="nosefailbanner">
-          failed: <span class="nosefailedfunc">{name!e}</span>
-            [<a class="nosefailtoggle" href="#">toggle traceback</a>]
-        </div>
-        <pre class="nosetraceback" style="display:{hide_traceback_style}">{formatted_traceback!e}</pre>
-    </div>
-    ''')
 
     _tracebacks_template_text = Template(
         '''========\n{name}\n========\n{formatted_traceback}\n''')
@@ -311,7 +179,7 @@ class IPythonDisplay(Plugin):
 
     def finalize(self, result):
         self.result = result
-        self.live_output.finalize()
+        self.live_output.finalize(self._summarize(), self._summarize_tracebacks())
 
     def setOutputStream(self, stream):
         # grab for own use
@@ -330,44 +198,19 @@ class IPythonDisplay(Plugin):
     def stopTest(self, test):
         pass
 
-    @staticmethod
-    def make_link(matches):
-        target = matches.group(0)
-        input_id = matches.group(1)
-        link = '<a href="#{target}">{target}</a>'.format(target=target)
-        make_anchor_js = '''<script>
-            $("div.prompt.input_prompt:contains([{input_id}])")
-                .attr("id", "{target}");
-            </script>'''.format(input_id=input_id, target=target)
-        return link + make_anchor_js
-
-    def linkify_html_traceback(self, html):
-        return re.sub(
-            r'ipython-input-(\d+)-[0-9a-f]{12}',
-            self.make_link,
-            html)
-
-    def _repr_html_(self):
-        if self.num_tests <= 0:
-            return 'No tests found.'
-
-        output = [self._nose_css, self._show_hide_js]
-
-        output.append(self._summary(
-            self.num_tests, len(self.failures), self.skipped,
-            self._summary_template_html))
-        output.append(self.linkify_html_traceback(self._tracebacks(
-            self.failures, self._tracebacks_template_html)))
-        return ''.join(output)
-
     def _repr_pretty_(self, p, cycle):
         if self.num_tests <= 0:
             p.text('No tests found.')
             return
-        p.text(self._summary(
-            self.num_tests, len(self.failures), self.skipped,
-            self._summary_template_text))
-        p.text(self._tracebacks(self.failures, self._tracebacks_template_text))
+        p.text(self._summarize())
+        p.text(self._summarize_tracebacks())
+
+    def _summarize(self):
+        return self._summary(self.num_tests, len(self.failures), 
+                             self.skipped, self._summary_template_text)
+
+    def _summarize_tracebacks(self):
+        return self._tracebacks(self.failures, self._tracebacks_template_text)
 
 
 def get_ipython_user_ns_as_a_module():
@@ -447,6 +290,7 @@ def nose(line, cell=None, test_module=get_ipython_user_ns_as_a_module):
     nose_core.TestProgram(
         argv=argv, suite=tests, addplugins=[plug], exit=False, config=config)
 
+    get_ipython().user_ns['nose_obj'] = plug
     return plug
 
 
