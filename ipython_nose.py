@@ -6,6 +6,7 @@ import shlex
 import string
 import types
 import uuid
+import json
 
 from nose import core as nose_core
 from nose import loader as nose_loader
@@ -54,7 +55,11 @@ class NotebookLiveOutput(object):
         #                                    .format(self=self))},
         #        raw=True)
 
-    def finalize(self, header, tracebacks):
+    def finalize(self, pass_or_fail, header, tracebacks):
+        # tell frontend whether tests passed or failed
+        result = { 'type': 'test-result', 'payload': { 'success': pass_or_fail } }
+        display({'application/json': json.dumps(result)}, raw = True)
+        # display text results of tests
         display({'text/task-output': '<pre>%s</pre>'%header}, raw = True)
         display({'text/task-output': '<pre>%s</pre>'%tracebacks}, raw = True)
         pass
@@ -179,7 +184,9 @@ class IPythonDisplay(Plugin):
 
     def finalize(self, result):
         self.result = result
-        self.live_output.finalize(self._summarize(), self._summarize_tracebacks())
+        self.live_output.finalize(self.result.wasSuccessful(),
+                                  self._summarize(),
+                                  self._summarize_tracebacks())
 
     def setOutputStream(self, stream):
         # grab for own use
