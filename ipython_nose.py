@@ -47,41 +47,32 @@ class DummyUnittestStream:
 class NotebookLiveOutput(object):
     def __init__(self):
         self.output_id = 'ipython_nose_%s' % uuid.uuid4().hex
-        #display({'text/html': ('<div id="{self.output_id}"></div>'
-        #                       .format(self=self))},
-        #        raw=True)
-        #display({'application/javascript': ('document.{self.output_id} = '
-        #                                    '$("#{self.output_id}");'
-        #                                    .format(self=self))},
-        #        raw=True)
 
-    def finalize(self, pass_or_fail, header, tracebacks):
+    def finalize(self, pass_or_fail, n_tests, n_failures, n_errors, tests):
         # tell frontend whether tests passed or failed
-        result = { 'type': 'test-result', 'payload': { 'success': pass_or_fail } }
-        display({'application/json': json.dumps(result)}, raw = True)
-        # display text results of tests
-        display({'text/task-output': '<pre>%s</pre>'%header}, raw = True)
-        display({'text/task-output': '<pre>%s</pre>'%tracebacks}, raw = True)
-        pass
-        #display({'application/javascript': ('delete document.{self.output_id};'
-        #                                    .format(self=self))},
-        #        raw=True)
+        out = {
+               "success": pass_or_fail,
+               "summary": {
+                   "tests":    n_tests,      # the total number of tests,
+                   "failures": n_failures,   # the number of tests that failed
+                   "errors":   n_errors      # The number of tests that errored out, which mean it couldn't run but dind'
+                   },
+               "tests": list(map(self._dump_test, tests))
+               }
 
+        display({'application/json': json.dumps(out)}, raw = True)
+        
     def write_chars(self, chars):
         pass
-        #display({'application/javascript': ('document.{self.output_id}.append('
-        #                                    '$("<span>{chars}</span>"));'
-        #                                    .format(self=self,
-        #                                            chars=cgi.escape(chars)))},
-        #        raw=True)
 
     def write_line(self, line):
         pass
-        #display({'application/javascript': ('document.{self.output_id}.append('
-        #                                    '$("<div>{line}</div>"));')
-        #                                    .format(self=self,
-        #                                            line=cgi.escape(line))},
-        #        raw=True)
+
+    def _dump_test(self, test_tuple):
+        test, exc, res  = test_tuple
+        return { "name": str(test.test.test.__name__), # NoseTest.SomeTestCaseClass.func
+                 "success": res == "success",
+                 "message": ''.join(traceback.format_exception(*exc)) if res != "success" else ""}
 
 
 def html_escape(s):
@@ -102,6 +93,7 @@ class IPythonDisplay(Plugin):
         self.html = []
         self.num_tests = 0
         self.failures = []
+        self.tests = []
         self.skipped = 0
 
     _summary_template_text = Template('''{text}\n''')
@@ -134,7 +126,7 @@ class IPythonDisplay(Plugin):
 
     def _tracebacks(self, failures, template):
         output = []
-        for test, exc in failures:
+        for test, exc, res in failures:
             name = test.shortDescription() or str(test)
             formatted_traceback = ''.join(traceback.format_exception(*exc))
             output.append(template.format(
@@ -153,6 +145,7 @@ class IPythonDisplay(Plugin):
             self._write_test_line(test, 'pass')
         else:
             self.live_output.write_chars('.')
+        self.tests.append((test, None, 'success'))
 
     def addError(self, test, err):
         if issubclass(err[0], SkipTest):
@@ -161,14 +154,16 @@ class IPythonDisplay(Plugin):
             self._write_test_line(test, 'error')
         else:
             self.live_output.write_chars('E')
-        self.failures.append((test, err))
+        self.failures.append((test, err, 'error'))
+        self.tests.append((test, err, 'error'))
 
     def addFailure(self, test, err):
         if self.verbose:
             self._write_test_line(test, 'fail')
         else:
             self.live_output.write_chars('F')
-        self.failures.append((test, err))
+        self.failures.append((test, err, 'failure'))
+        self.tests.append((test, err, 'failure'))
 
     # Deprecated in newer versions of nose; skipped tests are handled in
     # addError in newer versions
@@ -184,9 +179,10 @@ class IPythonDisplay(Plugin):
 
     def finalize(self, result):
         self.result = result
-        self.live_output.finalize(self.result.wasSuccessful(),
-                                  self._summarize(),
-                                  self._summarize_tracebacks())
+        self.live_output.finalize(
+                result.wasSuccessful(),
+                self.num_tests, self.n_failures, self.n_errors,
+                self.tests)
 
     def setOutputStream(self, stream):
         # grab for own use
@@ -204,6 +200,14 @@ class IPythonDisplay(Plugin):
 
     def stopTest(self, test):
         pass
+
+    @property
+    def n_failures(self):
+        return len([entry for entry in self.failures if entry[2] == 'failure'])
+
+    @property
+    def n_errors(self):
+        return len([entry for entry in self.failures if entry[2] == 'error'])
 
     def _repr_pretty_(self, p, cycle):
         if self.num_tests <= 0:
