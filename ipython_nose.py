@@ -72,7 +72,7 @@ class NotebookLiveOutput(object):
         test, exc, res  = test_tuple
         return { "name": str(test.test.test.__name__), # NoseTest.SomeTestCaseClass.func
                  "success": res == "success",
-                 "message": ''.join(traceback.format_exception(*exc)) if res != "success" else ""}
+                 "message": ''.join(traceback.format_exception(*exc)[-1:]) if res != "success" else ""}
 
 
 def html_escape(s):
@@ -301,7 +301,8 @@ def nose(line, cell=None, test_module=get_ipython_user_ns_as_a_module):
     nose_core.TestProgram(
         argv=argv, suite=tests, addplugins=[plug], exit=False, config=config)
 
-    get_ipython().user_ns['nose_obj'] = plug
+    ## for debugging
+    #get_ipython().user_ns['nose_obj'] = plug
     return plug
 
 
