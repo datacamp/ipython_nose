@@ -60,7 +60,9 @@ class NotebookLiveOutput(object):
                "tests": list(map(self._dump_test, tests))
                }
 
-        display({'application/json': json.dumps(out)}, raw = True)
+        output = {'application/json': json.dumps(out)}
+        display(output, raw = True)
+        return output
         
     def write_chars(self, chars):
         pass
@@ -95,6 +97,7 @@ class IPythonDisplay(Plugin):
         self.failures = []
         self.tests = []
         self.skipped = 0
+        self.json_output = ""
 
     _summary_template_text = Template('''{text}\n''')
 
@@ -179,7 +182,7 @@ class IPythonDisplay(Plugin):
 
     def finalize(self, result):
         self.result = result
-        self.live_output.finalize(
+        self.json_output = self.live_output.finalize(
                 result.wasSuccessful(),
                 self.num_tests, self.n_failures, self.n_errors,
                 self.tests)
