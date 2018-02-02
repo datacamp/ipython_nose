@@ -250,7 +250,7 @@ class ExcludingTestSelector(defaultSelector):
     def _in_excluded_objects(self, obj):
         for excluded_object in self.excluded_objects:
             try:
-                if obj == excluded_object:
+                if obj is excluded_object:
                     return True
             except Exception:
                 return False
