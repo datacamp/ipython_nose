@@ -72,7 +72,7 @@ class NotebookLiveOutput(object):
 
     def _dump_test(self, test_tuple):
         test, exc, res  = test_tuple
-        return { "name": str(test.test.test.__name__), # NoseTest.SomeTestCaseClass.func
+        return { "name": test.shortDescription() or str(test),
                  "success": res == "success",
                  "message": ''.join(traceback.format_exception(*exc)[-1:]) if res != "success" else ""}
 
